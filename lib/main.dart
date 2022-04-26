@@ -1,5 +1,7 @@
+import 'package:duck_store/DuckUiModelMapper.dart';
 import 'package:duck_store/GetRandomDuckUseCase.dart';
 import 'package:duck_store/models/DuckDTO.dart';
+import 'package:duck_store/models/DuckUiModel.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -51,6 +53,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   late Future<DuckDTO> futureDuck;
+  DuckUiModel duckUiModel = DuckUiModel.empty();
 
   void _getRandomDuck() {
     setState(() {
@@ -66,17 +69,33 @@ class _MyHomePageState extends State<MyHomePage> {
     // The Flutter framework has been optimized to make rerunning build methods
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
+    bool isMerchantState = duckUiModel == DuckUiModel.empty();
     return Scaffold(
       appBar: AppBar(
         // Here we take the value from the MyHomePage object that was created by
         // the App.build method, and use it to set our appbar title.
-        title: InkWell(
-            onTap: () {
-              _getRandomDuck();
-            },
-            child: Text(widget.title)),
+        title: Text(widget.title),
       ),
-      body: Center(),
+      body: Center(
+        child: Column(
+          children: [
+            Visibility(
+                child: const Text(
+                    "Welcome, traveler. Please, take a look at my duck collection..."
+                ),
+                visible: isMerchantState
+            ),
+            Image.network(duckUiModel.url),
+            ElevatedButton(
+                onPressed: () {
+                  _getRandomDuck();
+                  futureDuck.then((value) =>
+                  {duckUiModel = DuckUiModelMapper().map(value)});
+                },
+                child: const Text("Show me the duck!"))
+          ],
+        ),
+      ),
     );
   }
 }
