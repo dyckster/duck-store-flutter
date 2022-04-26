@@ -1,8 +1,9 @@
-import 'package:duck_store/DuckUiModelMapper.dart';
-import 'package:duck_store/GetRandomDuckUseCase.dart';
+import 'package:duck_store/mapper/DuckUiModelMapper.dart';
 import 'package:duck_store/models/DuckDTO.dart';
 import 'package:duck_store/models/DuckUiModel.dart';
+import 'package:duck_store/usecase/GetRandomDuckUseCase.dart';
 import 'package:flutter/material.dart';
+import 'package:shake/shake.dart';
 
 void main() {
   runApp(const MyApp());
@@ -54,6 +55,21 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   late Future<DuckDTO> futureDuck;
   DuckUiModel duckUiModel = DuckUiModel.empty();
+  bool isLoadingANewDuck = false;
+  bool isFlyingAway = false;
+  late Widget _image;
+  Offset offset = const Offset(0, 0);
+
+  @override
+  void initState() {
+    ShakeDetector.autoStart(onPhoneShake: () {
+      setState(() {
+        offset = const Offset(0, 500);
+        isFlyingAway = true;
+      });
+    });
+    super.initState();
+  }
 
   void _getRandomDuck() {
     setState(() {
@@ -63,39 +79,145 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     bool isMerchantState = duckUiModel == DuckUiModel.empty();
+
+    _image = imageWidgetPositioned(duckUiModel.url, isMerchantState);
+
+    String dialogText = "Quack. I am a debug text";
+    if (isFlyingAway) {
+      dialogText = "Oh no! You scared the cute duck.\nIt's flying away!";
+    } else if (duckUiModel.isRare) {
+      dialogText = "Wow! A rare duck. Nice.";
+    } else if (isMerchantState) {
+      dialogText =
+          "Welcome, traveler.\n\nPlease, take a look at my duck collection...";
+    } else if (isLoadingANewDuck) {
+      dialogText = "Searching for a compatible duck....";
+    } else {
+      dialogText = ([
+        "Behold, a duck!",
+        "Here's a duck",
+        "Behold, another duck",
+        "Quack quack, here's a duck",
+        "Do you mind holding this duck",
+        "Huh. Can't find the rare one?"
+      ]..shuffle())
+          .first;
+    }
     return Scaffold(
-      appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          children: [
-            Visibility(
-                child: const Text(
-                    "Welcome, traveler. Please, take a look at my duck collection..."
+      body: Stack(
+        children: [
+          Container(
+              decoration: const BoxDecoration(
+                  image: DecorationImage(
+                      image: AssetImage("assets/shop_background.png"),
+                      fit: BoxFit.cover))),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 102, 16, 32),
+            child: Center(
+                child: Column(
+              children: [
+                Stack(
+                  children: [
+                    Visibility(
+                      child: _image,
+                      visible: true,
+                    ),
+                    Visibility(
+                      child: Image.asset("assets/rare_gradient.png",
+                          width: 256, height: 256, fit: BoxFit.fill),
+                      visible: duckUiModel.isRare && !isLoadingANewDuck,
+                    ),
+                    Visibility(
+                        child: Image.asset('assets/frame.png'),
+                        visible: !isMerchantState)
+                  ],
                 ),
-                visible: isMerchantState
-            ),
-            Image.network(duckUiModel.url),
-            ElevatedButton(
-                onPressed: () {
-                  _getRandomDuck();
-                  futureDuck.then((value) =>
-                  {duckUiModel = DuckUiModelMapper().map(value)});
-                },
-                child: const Text("Show me the duck!"))
-          ],
-        ),
+                Container(
+                  constraints:
+                      const BoxConstraints(minHeight: 200, maxHeight: 300),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 16),
+                    child: Text(dialogText,
+                        style: const TextStyle(
+                            fontFamily: 'PressStart2P',
+                            color: Colors.white,
+                            fontSize: 20)),
+                  ),
+                ),
+                OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 18, horizontal: 20),
+                        textStyle: const TextStyle(
+                            fontFamily: 'PressStart2P',
+                            color: Colors.white,
+                            fontSize: 16),
+                        primary: Colors.white,
+                        side: const BorderSide(
+                            color: Colors.orangeAccent, width: 8),
+                        backgroundColor: Colors.deepOrange),
+                    onPressed: isLoadingANewDuck
+                        ? null
+                        : () {
+                            setState(() {
+                              isFlyingAway = false;
+                              isLoadingANewDuck = true;
+                            });
+                            _getRandomDuck();
+                            futureDuck.then((value) => {
+                                  setState(() {
+                                    offset = const Offset(0, 0);
+                                    isLoadingANewDuck = false;
+                                    duckUiModel =
+                                        DuckUiModelMapper().map(value);
+                                  })
+                                });
+                          },
+                    child: Text("Show me the duck!".toUpperCase()))
+              ],
+            )),
+          )
+        ],
       ),
     );
+  }
+
+  Widget imageWidgetPositioned(String url, bool isMerchantState) {
+    Duration duration;
+    if (isFlyingAway) {
+      duration = const Duration(milliseconds: 5000);
+    } else {
+      duration = const Duration(milliseconds: 1000);
+    }
+    Widget image = imageWidget(url, isMerchantState);
+    if (isMerchantState) {
+      return image;
+    } else {
+      return AnimatedPositioned(
+          duration: duration, top: offset.dy, left: offset.dx, child: image);
+    }
+  }
+
+  Widget imageWidget(String url, bool isMerchantState) {
+    return Image.network(url, loadingBuilder:
+        (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
+      if (loadingProgress == null || isMerchantState) {
+        return child;
+      }
+      return Container(
+        width: 256,
+        height: 256,
+        color: Colors.white,
+        alignment: Alignment.center,
+        child: CircularProgressIndicator(
+          value: loadingProgress.expectedTotalBytes != null
+              ? loadingProgress.cumulativeBytesLoaded /
+                  loadingProgress.expectedTotalBytes!
+              : null,
+        ),
+      );
+    }, width: 256, height: 256, fit: BoxFit.fill);
   }
 }
